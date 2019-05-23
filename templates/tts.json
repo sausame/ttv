@@ -1,0 +1,41 @@
+{
+	"_comment":"Text to speech",
+	"max-length":"600",
+	"url":"http://cache-a.oddcast.com/tts/gen.php?",
+	"accountId":"5883747",
+	"secretId":"uetivb9tb8108wfj",
+	"languageId":"1",
+	"voiceIds":[
+		"3",
+	   	"4"
+	],
+	"preparation": {
+		"EID": "3",
+		"LID": null,
+		"VID": null,
+		"TXT": null,
+		"IS_UTF8": "1",
+		"EXT": "mp3",
+		"FNAME": "",
+		"ACC": null,
+		"API": "",
+		"SESSION": "",
+		"CS": "",
+		"ID3ONLY": "1"
+	},
+	"download": {
+		"EID": "3",
+		"LID": null,
+		"VID": null,
+		"TXT": null,
+		"IS_UTF8": "1",
+		"EXT": "mp3",
+		"FNAME": "",
+		"ACC": null,
+		"API": "",
+		"SESSION": "",
+		"CS": "",
+		"cache_flag": "3"
+	}
+}
+
