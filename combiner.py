@@ -12,10 +12,11 @@ from utils import duration2srttime, getMatchString, getProperty, reprDict, runCo
 
 class ContentGenerator:
 
-    def __init__(self, configFile, contentConfig):
+    def __init__(self, configFile, contentConfig, background):
 
         self.configFile = configFile
         self.contentConfig = contentConfig
+        self.background = background
 
     def generate(self, tts, coding, content, silencePath):
 
@@ -44,59 +45,6 @@ class ContentGenerator:
         self.width = int(self.contentConfig['width'])
         self.height = int(self.contentConfig['height'])
 
-        # Logo:
-        logo = self.contentConfig['logo']
-
-        if logo:
-            # TODO: download logo
-            pass
-        else:
-            logo = getProperty(self.configFile, 'logo-path')
-
-        if logo:
-            self.logo = os.path.join(self.path, 'logo.jpg')
-
-            logoWidth = int(self.contentConfig['logo-width'])
-            logoHeight = int(self.contentConfig['logo-height'])
-
-            print('Create logo', self.logo, 'from', logo)
-
-            '''
-            cmd = 'ffmpeg -y -i {} -vf scale="{}:{}" {}'.format(logo,
-                    logoWidth, logoHeight, self.logo)
-
-            runCommand(cmd)
-            '''
-
-            ImageKit.resize(self.logo, logo, newSize=(logoWidth, logoHeight))
-        else:
-            self.logo = None
-
-        # Background:
-        background = self.contentConfig['background']
-
-        if background:
-            # TODO: download background
-            pass
-        else:
-            background = getProperty(self.configFile, 'background-path')
-
-        if background:
-            self.background = os.path.join(self.path, 'background.jpg')
-
-            print('Create background', self.background, 'from', background)
-
-            '''
-            cmd = 'ffmpeg -y -i {} -vf scale="{}:{}" {}'.format(background,
-                    self.width, self.height, self.background)
-
-            runCommand(cmd)
-            '''
-
-            ImageKit.resize(self.background, background, newSize=(self.width, self.height))
-        else:
-            self.background = None
-
         # Font
         self.font = self.contentConfig['font']
         if not self.font:
@@ -122,7 +70,7 @@ class ContentGenerator:
 
             print('Add title for', titlePath)
 
-            cmd = ''' ffmpeg -y -i {} -max_muxing_queue_size 2048 -vf drawtext="fontfile={}: \
+            cmd = ''' ffmpeg -y -i {} -max_muxing_queue_size 10240 -vf drawtext="fontfile={}: \
                       text='{}': fontcolor=white: fontsize=48: box=1: boxcolor=black@0.5: \
                       boxborderw=5: x=(w-text_w)/2: y=20" -codec:a copy {} '''.format(pathname,
                               self.font, self.name, titlePath)
@@ -151,24 +99,10 @@ class ContentGenerator:
         runCommand(cmd)
 
         # Add subtitle
-        subtitleVideoPath = os.path.join(self.path, 'ass.mp4')
-
-        print('Add subtitle to', subtitleVideoPath)
-        cmd = 'ffmpeg -y -i {} -max_muxing_queue_size 2048 -vf "ass={}" {}'.format(titlePath, assPath, subtitleVideoPath)
-
-        runCommand(cmd)
-
-        # Add logo
         self.videoPath = os.path.join(self.path, 'video.mp4')
 
-        if self.logo:
-
-            print('Add logo to', self.videoPath)
-            cmd = 'ffmpeg -y -i {} -i {} -filter_complex "overlay=10:10" {}'.format(subtitleVideoPath,
-                    self.logo, self.videoPath)
-        else:
-            print('Rename', subtitleVideoPath, 'to', self.videoPath)
-            cmd = 'mv {} {}'.format(subtitleVideoPath, self.videoPath)
+        print('Add subtitle to', self.videoPath)
+        cmd = 'ffmpeg -y -i {} -max_muxing_queue_size 2048 -vf "ass={}" {}'.format(titlePath, assPath, self.videoPath)
 
         runCommand(cmd)
 
@@ -193,20 +127,27 @@ class ContentGenerator:
 
             duration = self.length / self.imageCount
 
+            count = -1
+
             for index in range(self.imageCount):
 
                 imagePath = os.path.join(self.path, '{}.jpg'.format(index))
 
-                if index > 0:
+                if not os.path.exists(imagePath):
+                    continue
+
+                count += 1
+
+                if count > 0:
                     fp.write('duration {:.2f}\n'.format(duration))
 
                 fp.write('file \'{}\'\n'.format(imagePath))
 
-                if index is 0:
+                if count is 0:
                     fp.write('duration 0\n')
                     fp.write('file \'{}\'\n'.format(imagePath))
             else:
-                if index > 0:
+                if count > 0:
                     fp.write('duration 0\n')
                     fp.write('file \'{}\'\n'.format(imagePath))
 
@@ -459,7 +400,7 @@ class Combiner:
 
             tts.switchVoice()
 
-            generator = ContentGenerator(self.configFile, contentConfig)
+            generator = ContentGenerator(self.configFile, contentConfig, self.background)
             generator.generate(tts, coding, content, self.silencePath)
 
             if generator.videoPath is not None:
@@ -533,13 +474,32 @@ class Combiner:
         cmd = 'ffmpeg -y -f lavfi -i anullsrc=r=22050:cl=mono -t 1 -q:a 9 -acodec libmp3lame {}'.format(self.silencePath)
         runCommand(cmd)
 
+        # To m4a
+        audioPath = '{}m4a'.format(self.silencePath[:-3])
+
+        print('Translate', self.silencePath, 'to', audioPath)
+        cmd = 'ffmpeg -y -i {} -vn -acodec aac -strict -2 \'-bsf:a\' aac_adtstoasc {}'.format(self.silencePath,
+                audioPath)
+
+        runCommand(cmd)
+
         # Create separator between videos
+        separatorPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'separator.mp4')
+
+        print('Create separator in', separatorPath)
+
+        cmd = 'ffmpeg -y -loop 1 -i {} -c:v libx264 -t 1 -pix_fmt yuv420p {}'.format(self.background,
+                separatorPath)
+
+        runCommand(cmd)
+
+        # Merge image and audio
         self.separatorPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'separator.mp4')
 
-        print('Create separator in', self.separatorPath)
+        print('Merge', separatorPath, 'and', audioPath, 'to', self.separatorPath)
 
-        cmd = 'ffmpeg -y -loop 1 -i {} -c:v libx264 -t 2 -pix_fmt yuv420p {}'.format(self.background,
-                self.separatorPath)
+        cmd = 'ffmpeg -y -i {} -i {} -c copy -map \'0:v:0\' -map \'1:a:0\' {}'.format(separatorPath,
+                audioPath, self.separatorPath)
 
         runCommand(cmd)
 
@@ -548,17 +508,33 @@ class Combiner:
         if len(videos) is 0:
             return
 
+        # Merge all videos
         configPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'video.txt')
 
         with open(configPath, 'w') as fp:
             for video in videos:
                 fp.write('file \'{}\'\n'.format(video))
                 fp.write('file \'{}\'\n'.format(self.separatorPath))
+                fp.write('file \'{}\'\n'.format(self.separatorPath))
 
+        videoPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'all.mp4')
+
+        print('Merge all to', videoPath, 'from', configPath)
+        cmd = 'ffmpeg -y -f concat -safe 0 -i {} -c copy {}'.format(configPath, videoPath)
+
+        runCommand(cmd)
+
+        # Add logo
         self.videoPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'video.mp4')
 
-        print('Merge all to', self.videoPath, 'from', configPath)
-        cmd = 'ffmpeg -y -f concat -safe 0 -i {} -c copy {}'.format(configPath, self.videoPath)
+        if self.logo:
+
+            print('Add logo to', self.videoPath)
+            cmd = 'ffmpeg -y -i {} -i {} -filter_complex "overlay=10:10" {}'.format(videoPath,
+                    self.logo, self.videoPath)
+        else:
+            print('Rename', videoPath, 'to', self.videoPath)
+            cmd = 'mv {} {}'.format(videoPath, self.videoPath)
 
         runCommand(cmd)
 
