@@ -6,6 +6,7 @@ import json
 import os
 import urllib.parse
 
+from imgkit import ImageKit
 from network import Network
 from utils import duration2srttime, getMatchString, getProperty, reprDict, runCommand, OutputPath
 
@@ -13,26 +14,24 @@ class ContentGenerator:
 
     def __init__(self, configFile, contentConfig):
 
-        self.width = contentConfig['width']
-        self.height = contentConfig['height']
-
-        self.logo = contentConfig['logo']
-        if self.logo is None or '' == self.logo:
-            self.logo = getProperty(configFile, 'logo-path')
-
-        self.backgroundPath = contentConfig['background']
-        if self.backgroundPath is None or '' == self.backgroundPath:
-            self.backgroundPath = getProperty(configFile, 'background-path')
-
-        self.font = contentConfig['font']
-        if self.font is None or '' == self.font:
-            self.font = getProperty(configFile, 'font-path')
+        self.configFile = configFile
+        self.contentConfig = contentConfig
 
     def generate(self, tts, coding, content, silencePath):
 
         self.name = content['name']
+        name = self.name
 
-        OutputPath.createDataPath(self.name)
+        if not name:
+
+            m = hashlib.md5()
+            m.update(content['text'].encode('utf-8'))
+            name = m.hexdigest()[:8]
+
+        OutputPath.createDataPath(name)
+        self.path = OutputPath.getDataPath(name)
+
+        self.prepare()
 
         self.saveImages(coding, content['image-urls-list'])
         self.generateTts(tts, coding, content['text'], silencePath)
@@ -40,12 +39,73 @@ class ContentGenerator:
         self.createSlider()
         self.merge()
 
+    def prepare(self):
+
+        self.width = int(self.contentConfig['width'])
+        self.height = int(self.contentConfig['height'])
+
+        # Logo:
+        logo = self.contentConfig['logo']
+
+        if logo:
+            # TODO: download logo
+            pass
+        else:
+            logo = getProperty(self.configFile, 'logo-path')
+
+        if logo:
+            self.logo = os.path.join(self.path, 'logo.jpg')
+
+            logoWidth = int(self.contentConfig['logo-width'])
+            logoHeight = int(self.contentConfig['logo-height'])
+
+            print('Create logo', self.logo, 'from', logo)
+
+            '''
+            cmd = 'ffmpeg -y -i {} -vf scale="{}:{}" {}'.format(logo,
+                    logoWidth, logoHeight, self.logo)
+
+            runCommand(cmd)
+            '''
+
+            ImageKit.resize(self.logo, logo, newSize=(logoWidth, logoHeight))
+        else:
+            self.logo = None
+
+        # Background:
+        background = self.contentConfig['background']
+
+        if background:
+            # TODO: download background
+            pass
+        else:
+            background = getProperty(self.configFile, 'background-path')
+
+        if background:
+            self.background = os.path.join(self.path, 'background.jpg')
+
+            print('Create background', self.background, 'from', background)
+
+            '''
+            cmd = 'ffmpeg -y -i {} -vf scale="{}:{}" {}'.format(background,
+                    self.width, self.height, self.background)
+
+            runCommand(cmd)
+            '''
+
+            ImageKit.resize(self.background, background, newSize=(self.width, self.height))
+        else:
+            self.background = None
+
+        # Font
+        self.font = self.contentConfig['font']
+        if not self.font:
+            self.font = getProperty(self.configFile, 'font-path')
+
     def merge(self):
 
-        path = OutputPath.getDataPath(self.name)
-
         # Merge image and audio
-        pathname = os.path.join(path, 'temp.mp4')
+        pathname = os.path.join(self.path, 'temp.mp4')
 
         print('Merge', self.imagePath, 'and', self.audioPath, 'to', pathname)
 
@@ -55,16 +115,21 @@ class ContentGenerator:
         runCommand(cmd)
 
         # Add title
-        imageVideoPath = os.path.join(path, 'image.mp4')
 
-        print('Add title for', imageVideoPath)
+        if self.name and self.font:
 
-        cmd = ''' ffmpeg -y -i {} -max_muxing_queue_size 2048 -vf drawtext="fontfile={}: \
-                  text='{}': fontcolor=white: fontsize=48: box=1: boxcolor=black@0.5: \
-                  boxborderw=5: x=(w-text_w)/2: y=20" -codec:a copy {} '''.format(pathname,
-                          self.font, self.name, imageVideoPath)
+            titlePath = os.path.join(self.path, 'title.mp4')
 
-        runCommand(cmd)
+            print('Add title for', titlePath)
+
+            cmd = ''' ffmpeg -y -i {} -max_muxing_queue_size 2048 -vf drawtext="fontfile={}: \
+                      text='{}': fontcolor=white: fontsize=48: box=1: boxcolor=black@0.5: \
+                      boxborderw=5: x=(w-text_w)/2: y=20" -codec:a copy {} '''.format(pathname,
+                              self.font, self.name, titlePath)
+
+            runCommand(cmd)
+        else:
+            titlePath = pathname
 
         # Create subtitle
         '''
@@ -78,7 +143,7 @@ class ContentGenerator:
             To format the timestamps correctly, show:
                 [hours]:[minutes]:[seconds],[milliseconds]
         '''
-        assPath = os.path.join(path, 'subtitle.ass')
+        assPath = os.path.join(self.path, 'subtitle.ass')
 
         print('Tranlate', self.subtitlePath, 'to', assPath)
 
@@ -86,17 +151,17 @@ class ContentGenerator:
         runCommand(cmd)
 
         # Add subtitle
-        subtitleVideoPath = os.path.join(path, 'ass.mp4')
+        subtitleVideoPath = os.path.join(self.path, 'ass.mp4')
 
         print('Add subtitle to', subtitleVideoPath)
-        cmd = 'ffmpeg -y -i {} -vf "ass={}" {}'.format(imageVideoPath, assPath, subtitleVideoPath)
+        cmd = 'ffmpeg -y -i {} -max_muxing_queue_size 2048 -vf "ass={}" {}'.format(titlePath, assPath, subtitleVideoPath)
 
         runCommand(cmd)
 
         # Add logo
-        self.videoPath = os.path.join(path, 'video.mp4')
+        self.videoPath = os.path.join(self.path, 'video.mp4')
 
-        if self.logo is not None and '' != self.logo:
+        if self.logo:
 
             print('Add logo to', self.videoPath)
             cmd = 'ffmpeg -y -i {} -i {} -filter_complex "overlay=10:10" {}'.format(subtitleVideoPath,
@@ -109,19 +174,28 @@ class ContentGenerator:
 
     def createSlider(self):
 
+        self.imagePath = os.path.join(self.path, 'image.mp4')
+
         if self.imageCount is 0:
+            print('Create slider to', self.imagePath, 'from', self.background)
+
+            # TODO: Use background as image
+            cmd = 'ffmpeg -y -loop 1 -i {} -c:v libx264 -t {:.2f} -pix_fmt yuv420p {}'.format(self.background,
+                    self.length, self.imagePath)
+
+            runCommand(cmd)
+
             return
 
-        duration = self.length / self.imageCount
-
-        path = OutputPath.getDataPath(self.name)
-        configPath = os.path.join(path, 'image.txt')
+        configPath = os.path.join(self.path, 'image.txt')
 
         with open(configPath, 'w') as fp:
 
+            duration = self.length / self.imageCount
+
             for index in range(self.imageCount):
 
-                imagePath = os.path.join(path, '{}.png'.format(index))
+                imagePath = os.path.join(self.path, '{}.jpg'.format(index))
 
                 if index > 0:
                     fp.write('duration {:.2f}\n'.format(duration))
@@ -136,10 +210,12 @@ class ContentGenerator:
                     fp.write('duration 0\n')
                     fp.write('file \'{}\'\n'.format(imagePath))
 
-        self.imagePath = os.path.join(path, 'image.mp4')
+        print('Create slider to', self.imagePath, 'from', configPath)
 
         cmd = 'ffmpeg -y -f concat -safe 0 -i {} -s {}x{} -vsync vfr -pix_fmt yuv420p {}'.format(configPath,
                 self.width, self.height, self.imagePath)
+
+        print(cmd)
 
         runCommand(cmd)
 
@@ -160,19 +236,20 @@ class ContentGenerator:
 
             return Network.saveUrl(prefix, url)
 
-        path = OutputPath.getDataPath(self.name)
-
         index = 0
         for url in urls:
 
-            imagePath = saveImage(path, index, url)
+            if not url:
+                continue
+
+            imagePath = saveImage(self.path, index, url)
 
             if imagePath is not None:
 
-                if self.backgroundPath is not None and '' != self.backgroundPath:
+                if self.background:
 
                     # Scale image
-                    scalePath = os.path.join(path, '{}.scale.png'.format(index))
+                    scalePath = os.path.join(self.path, '{}.scale.jpg'.format(index))
 
                     print('Scale', imagePath, 'to', scalePath)
 
@@ -182,18 +259,18 @@ class ContentGenerator:
                     runCommand(cmd)
 
                     # Overlay background
-                    overlayPath = os.path.join(path, '{}.png'.format(index))
+                    overlayPath = os.path.join(self.path, '{}.jpg'.format(index))
 
-                    print('Overlay', self.backgroundPath, 'to', overlayPath)
+                    print('Overlay', self.background, 'to', overlayPath)
 
-                    cmd = 'ffmpeg -y -i {} -i {} -filter_complex "overlay=x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2" {}'.format(self.backgroundPath,
+                    cmd = 'ffmpeg -y -i {} -i {} -filter_complex "overlay=x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2" {}'.format(self.background,
                             scalePath, overlayPath)
 
                     runCommand(cmd)
                 else:
 
                     # Scale image
-                    scalePath = os.path.join(path, '{}.png'.format(index))
+                    scalePath = os.path.join(self.path, '{}.jgp'.format(index))
 
                     print('Scale', imagePath, 'to', scalePath)
 
@@ -267,14 +344,13 @@ class ContentGenerator:
             return 0.0
 
         self.length = 0.0
-        path = OutputPath.getDataPath(self.name)
 
         try:
 
-            audioConfigPath = os.path.join(path, 'audio.txt')
+            audioConfigPath = os.path.join(self.path, 'audio.txt')
             audioFp = open(audioConfigPath, 'w')
 
-            self.subtitlePath = os.path.join(path, 'subtitle.srt')
+            self.subtitlePath = os.path.join(self.path, 'subtitle.srt')
             srtFp = open(self.subtitlePath, 'w')
 
             length = len(text)
@@ -300,7 +376,7 @@ class ContentGenerator:
 
                     if len(segment.encode('utf-8')) < tts.maxLength:
 
-                        audioPath = generateTtsWithIndex(tts, path, index, segment)
+                        audioPath = generateTtsWithIndex(tts, self.path, index, segment)
 
                         if audioPath is not None:
 
@@ -335,7 +411,7 @@ class ContentGenerator:
             return
 
         # Concat all audio
-        pathname = os.path.join(path, 'audio.mp3')
+        pathname = os.path.join(self.path, 'audio.mp3')
 
         if index is 1:
             print('Rename', audioPath, 'to', pathname)
@@ -371,19 +447,120 @@ class Combiner:
                 print('No content')
                 return
 
+        self.contentConfig = contentConfig
+
+        self.prepare()
+
+        videos = list()
+
         coding = contentConfig['coding']
-
-        silencePath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'silence.mp3')
-
-        cmd = 'ffmpeg -y -f lavfi -i anullsrc=r=22050:cl=mono -t 1 -q:a 9 -acodec libmp3lame {}'.format(silencePath)
-        runCommand(cmd)
 
         for content in contentConfig['contents-list']:
 
             tts.switchVoice()
 
             generator = ContentGenerator(self.configFile, contentConfig)
-            generator.generate(tts, coding, content, silencePath)
+            generator.generate(tts, coding, content, self.silencePath)
+
+            if generator.videoPath is not None:
+                videos.append(generator.videoPath)
+
+        self.postProcess(videos)
+
+    def prepare(self):
+
+        self.width = int(self.contentConfig['width'])
+        self.height = int(self.contentConfig['height'])
+
+        # Logo:
+        logo = self.contentConfig['logo']
+
+        if logo:
+            # TODO: download logo
+            pass
+        else:
+            logo = getProperty(self.configFile, 'logo-path')
+
+        if logo:
+            self.logo = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'logo.jpg')
+
+            logoWidth = int(self.contentConfig['logo-width'])
+            logoHeight = int(self.contentConfig['logo-height'])
+
+            print('Create logo', self.logo, 'from', logo)
+
+            '''
+            cmd = 'ffmpeg -y -i {} -vf scale="{}:{}" {}'.format(logo,
+                    logoWidth, logoHeight, self.logo)
+
+            runCommand(cmd)
+            '''
+
+            ImageKit.resize(self.logo, logo, newSize=(logoWidth, logoHeight))
+        else:
+            self.logo = None
+
+        # Background:
+        background = self.contentConfig['background']
+
+        if background:
+            # TODO: download background
+            pass
+        else:
+            background = getProperty(self.configFile, 'background-path')
+
+        if background:
+            self.background = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'background.jpg')
+
+            print('Create background', self.background, 'from', background)
+
+            '''
+            cmd = 'ffmpeg -y -i {} -vf scale="{}:{}" {}'.format(background,
+                    self.width, self.height, self.background)
+
+            runCommand(cmd)
+            '''
+
+            ImageKit.resize(self.background, background, newSize=(self.width, self.height))
+        else:
+            self.background = None
+
+        # Create silence
+        self.silencePath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'silence.mp3')
+
+        print('Create silence in', self.silencePath)
+
+        cmd = 'ffmpeg -y -f lavfi -i anullsrc=r=22050:cl=mono -t 1 -q:a 9 -acodec libmp3lame {}'.format(self.silencePath)
+        runCommand(cmd)
+
+        # Create separator between videos
+        self.separatorPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'separator.mp4')
+
+        print('Create separator in', self.separatorPath)
+
+        cmd = 'ffmpeg -y -loop 1 -i {} -c:v libx264 -t 2 -pix_fmt yuv420p {}'.format(self.background,
+                self.separatorPath)
+
+        runCommand(cmd)
+
+    def postProcess(self, videos):
+
+        if len(videos) is 0:
+            return
+
+        configPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'video.txt')
+
+        with open(configPath, 'w') as fp:
+            for video in videos:
+                fp.write('file \'{}\'\n'.format(video))
+                fp.write('file \'{}\'\n'.format(self.separatorPath))
+
+        self.videoPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'video.mp4')
+
+        print('Merge all to', self.videoPath, 'from', configPath)
+        cmd = 'ffmpeg -y -f concat -safe 0 -i {} -c copy {}'.format(configPath, self.videoPath)
+
+        runCommand(cmd)
 
 class Tts:
 

@@ -6,8 +6,16 @@
 	"font":"",
 	"width":"1280",
 	"height":"720",
+	"logo-width":"120",
+	"logo-height":"40",
 	"contents-list":[
 		{
+			"name":"",
+			"image-urls-list":[
+				""
+			],
+			"text":"Welcome to fairy tales. It's May 24th 2019. There are two storys for you today.\n\nAre you ready? Here we go!\n"
+		}, {
 			"name":"The Three Little Pigs",
 			"image-urls-list":[
 				"https://shortstoriesshort.com/story/wp-content/uploads/2011/08/pigs-300x188.jpg",
