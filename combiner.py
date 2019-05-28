@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 
+import base64
 import hashlib
 import json
 import os
@@ -18,15 +19,38 @@ class ContentGenerator:
         self.contentConfig = contentConfig
         self.background = background
 
-    def generate(self, tts, coding, content, silencePath):
+        self.coding = self.contentConfig['coding']
 
-        self.name = content['name']
+    def getValue(self, dictObj, key):
+
+        def getDictValue(dictObj, key, coding='plate'):
+
+            if 'plate' == coding.lower():
+                return dictObj[key]
+
+            if 'base64' == coding.lower():
+                value = dictObj[key] 
+                if not value:
+                    return value
+
+                return base64.b64decode(value).decode('utf-8')
+
+            print('Not support', coding)
+            return None
+
+        return getDictValue(dictObj, key, self.coding)
+
+    def generate(self, tts, content, silencePath):
+
+        text = self.getValue(content, 'text')
+
+        self.name = self.getValue(content, 'name')
         name = self.name
 
         if not name:
 
             m = hashlib.md5()
-            m.update(content['text'].encode('utf-8'))
+            m.update(text.encode('utf-8'))
             name = m.hexdigest()[:8]
 
         OutputPath.createDataPath(name)
@@ -34,8 +58,8 @@ class ContentGenerator:
 
         self.prepare()
 
-        self.saveImages(coding, content['image-urls-list'])
-        self.generateTts(tts, coding, content['text'], silencePath)
+        self.saveImages(content['image-urls-list'])
+        self.generateTts(tts, text, silencePath)
 
         self.createSlider()
         self.merge()
@@ -156,11 +180,9 @@ class ContentGenerator:
         cmd = 'ffmpeg -y -f concat -safe 0 -i {} -s {}x{} -vsync vfr -pix_fmt yuv420p {}'.format(configPath,
                 self.width, self.height, self.imagePath)
 
-        print(cmd)
-
         runCommand(cmd)
 
-    def saveImages(self, coding, urls):
+    def saveImages(self, urls):
 
         def saveImage(path, index, url):
 
@@ -224,7 +246,7 @@ class ContentGenerator:
 
         self.imageCount = index
 
-    def generateTts(self, tts, coding, text, silencePath):
+    def generateTts(self, tts, text, silencePath):
 
         def generateTtsWithIndex(tts, path, index, segment):
 
@@ -394,14 +416,14 @@ class Combiner:
 
         videos = list()
 
-        coding = contentConfig['coding']
+        self.coding = self.contentConfig['coding']
 
-        for content in contentConfig['contents-list']:
+        for content in self.contentConfig['contents-list']:
 
             tts.switchVoice()
 
-            generator = ContentGenerator(self.configFile, contentConfig, self.background)
-            generator.generate(tts, coding, content, self.silencePath)
+            generator = ContentGenerator(self.configFile, self.contentConfig, self.background)
+            generator.generate(tts, content, self.silencePath)
 
             if generator.videoPath is not None:
                 videos.append(generator.videoPath)
@@ -484,7 +506,7 @@ class Combiner:
         runCommand(cmd)
 
         # Create separator between videos
-        separatorPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'separator.mp4')
+        separatorPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'image.mp4')
 
         print('Create separator in', separatorPath)
 
