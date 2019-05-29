@@ -559,7 +559,7 @@ class Combiner:
         if self.logo:
 
             print('Add logo to', self.videoPath)
-            cmd = 'ffmpeg -y -i {} -i {} -filter_complex "overlay=10:10" {}'.format(videoPath,
+            cmd = 'ffmpeg -y -i {} -i {} -max_muxing_queue_size 10240 -filter_complex "overlay=10:10" {}'.format(videoPath,
                     self.logo, self.videoPath)
         else:
             print('Rename', videoPath, 'to', self.videoPath)
