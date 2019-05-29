@@ -9,6 +9,7 @@ import urllib.parse
 
 from imgkit import ImageKit
 from network import Network
+from urllib.parse import unquote
 from utils import duration2srttime, getMatchString, getProperty, reprDict, runCommand, OutputPath
 
 class ContentGenerator:
@@ -33,7 +34,7 @@ class ContentGenerator:
                 if not value:
                     return value
 
-                return base64.b64decode(value).decode('utf-8')
+                return unquote(base64.b64decode(value).decode('utf-8'))
 
             print('Not support', coding)
             return None
@@ -197,6 +198,10 @@ class ContentGenerator:
             if os.path.exists(pathname):
                 return pathname
 
+            pathname = '{}.original.gif'.format(prefix)
+            if os.path.exists(pathname):
+                return pathname
+
             return Network.saveUrl(prefix, url)
 
         index = 0
@@ -233,7 +238,7 @@ class ContentGenerator:
                 else:
 
                     # Scale image
-                    scalePath = os.path.join(self.path, '{}.jgp'.format(index))
+                    scalePath = os.path.join(self.path, '{}.jpg'.format(index))
 
                     print('Scale', imagePath, 'to', scalePath)
 
@@ -242,7 +247,7 @@ class ContentGenerator:
 
                     runCommand(cmd)
 
-            index += 1
+                index += 1
 
         self.imageCount = index
 
@@ -401,7 +406,7 @@ class Combiner:
     def __init__(self, configFile):
         self.configFile = configFile
 
-    def combine(self, tts, contentFile):
+    def combine(self, tts, contentFile, videoFile):
 
         with open(contentFile) as fp:
             contentConfig = json.loads(fp.read())
@@ -418,6 +423,8 @@ class Combiner:
 
         self.coding = self.contentConfig['coding']
 
+        tts.setLanguage(self.contentConfig['language'])
+
         for content in self.contentConfig['contents-list']:
 
             tts.switchVoice()
@@ -428,7 +435,7 @@ class Combiner:
             if generator.videoPath is not None:
                 videos.append(generator.videoPath)
 
-        self.postProcess(videos)
+        self.postProcess(videos, videoFile)
 
     def prepare(self):
 
@@ -525,7 +532,7 @@ class Combiner:
 
         runCommand(cmd)
 
-    def postProcess(self, videos):
+    def postProcess(self, videos, videoFile):
 
         if len(videos) is 0:
             return
@@ -547,7 +554,7 @@ class Combiner:
         runCommand(cmd)
 
         # Add logo
-        self.videoPath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'video.mp4')
+        self.videoPath = videoFile
 
         if self.logo:
 
@@ -568,7 +575,17 @@ class Tts:
             self.config = json.loads(fp.read())
 
             self.maxLength = int(self.config['max-length'])
-            self.voiceIndex = None
+
+    def setLanguage(self, language):
+
+        for lang in self.config['languages']:
+            if language.lower() == lang['name']:
+                self.language = lang
+                break
+        else:
+            print('Not support language', language)
+
+        self.voiceIndex = None
 
     def switchVoice(self):
 
@@ -577,7 +594,7 @@ class Tts:
         else:
             self.voiceIndex += 1
 
-            if self.voiceIndex >= len(self.config['voiceIds']):
+            if self.voiceIndex >= len(self.language['voiceIds']):
                 self.voiceIndex = 0
 
     def generateTts(self, prefix, text):
@@ -590,8 +607,8 @@ class Tts:
         preparation = self.config['preparation']
         download = self.config['download']
 
-        languageId = self.config['languageId']
-        voiceId = self.config['voiceIds'][self.voiceIndex]
+        languageId = self.language['languageId']
+        voiceId = self.language['voiceIds'][self.voiceIndex]
 
         m = hashlib.md5()
 
@@ -625,5 +642,4 @@ class Tts:
         downloadUrl = '{}{}'.format(url, urllib.parse.urlencode(download))
 
         return Network.saveUrl(prefix, downloadUrl)
-
 

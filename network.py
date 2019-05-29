@@ -104,6 +104,8 @@ class Network:
             pathname = '{}.jpg'.format(pathPrefix)
         elif 'image/png' == contentType:
             pathname = '{}.png'.format(pathPrefix)
+        elif 'image/gif' == contentType:
+            pathname = '{}.gif'.format(pathPrefix)
         elif 'audio/mpeg' == contentType:
             pathname = '{}.mp3'.format(pathPrefix)
         else:

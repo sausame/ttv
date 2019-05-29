@@ -4,10 +4,22 @@
 	"url":"http://cache-a.oddcast.com/tts/gen.php?",
 	"accountId":"5883747",
 	"secretId":"uetivb9tb8108wfj",
-	"languageId":"1",
-	"voiceIds":[
-		"3",
-	   	"4"
+	"languages": [
+		{
+			"name": "english",
+			"languageId":"1",
+			"voiceIds":[
+				"3",
+				"4"
+			]
+		},{
+			"name": "chinese",
+			"languageId":"10",
+			"voiceIds":[
+				"3",
+				"4"
+			]
+		}
 	],
 	"preparation": {
 		"EID": "3",

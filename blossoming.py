@@ -11,7 +11,7 @@ from datetime import datetime
 from network import Network
 from utils import reprDict, OutputPath, ThreadWritableObject
 
-def run(name, configFile, ttsConfigFile, contentFile, logFile):
+def run(name, configFile, ttsConfigFile, contentFile, videoFile, logFile):
 
     OutputPath.init(configFile)
 
@@ -26,7 +26,7 @@ def run(name, configFile, ttsConfigFile, contentFile, logFile):
         Network.setIsEnabled(True)
         tts = Tts(ttsConfigFile)
         combiner = Combiner(configFile)
-        combiner.combine(tts, contentFile)
+        combiner.combine(tts, contentFile, videoFile)
     except KeyboardInterrupt:
         pass
     except Exception as e:
@@ -40,8 +40,8 @@ def run(name, configFile, ttsConfigFile, contentFile, logFile):
 
 if __name__ == '__main__':
 
-    if len(sys.argv) < 4:
-        print('Usage:\n\t', sys.argv[0], 'config-file tts-config-file content-file [log-file]\n')
+    if len(sys.argv) < 5:
+        print('Usage:\n\t', sys.argv[0], 'config-file tts-config-file content-file video-file [log-file]\n')
         exit()
 
     os.environ['TZ'] = 'Asia/Shanghai'
@@ -51,11 +51,12 @@ if __name__ == '__main__':
     configFile = os.path.realpath(sys.argv[1])
     ttsConfigFile = os.path.realpath(sys.argv[2])
     contentFile = os.path.realpath(sys.argv[3])
+    videoFile = os.path.realpath(sys.argv[4])
 
     logFile = None
 
-    if len(sys.argv) > 4:
-        logFile = sys.argv[4]
+    if len(sys.argv) > 5:
+        logFile = sys.argv[5]
 
-    run(name, configFile, ttsConfigFile, contentFile, logFile)
+    run(name, configFile, ttsConfigFile, contentFile, videoFile, logFile)
 
