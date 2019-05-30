@@ -446,8 +446,8 @@ class Combiner:
         logo = self.contentConfig['logo']
 
         if logo:
-            # TODO: download logo
-            pass
+            prefix = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'logo.original')
+            logo = Network.saveUrl(prefix, logo)
         else:
             logo = getProperty(self.configFile, 'logo-path')
 
@@ -474,8 +474,8 @@ class Combiner:
         background = self.contentConfig['background']
 
         if background:
-            # TODO: download background
-            pass
+            prefix = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'background.original')
+            background = Network.saveUrl(prefix, background)
         else:
             background = getProperty(self.configFile, 'background-path')
 
