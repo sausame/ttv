@@ -48,13 +48,21 @@ class ContentGenerator:
         self.name = self.getValue(content, 'name')
         name = self.name
 
+        if name:
+            try:
+                OutputPath.createDataPath(name)
+            except UnicodeEncodeError as e:
+                name = None
+                print(e)
+
         if not name:
 
             m = hashlib.md5()
             m.update(text.encode('utf-8'))
             name = m.hexdigest()[:8]
 
-        OutputPath.createDataPath(name)
+            OutputPath.createDataPath(name)
+
         self.path = OutputPath.getDataPath(name)
 
         self.prepare()
@@ -316,8 +324,7 @@ class ContentGenerator:
         try:
 
             audioConfigPath = os.path.join(self.path, 'audio.txt')
-            audioFp = open(audioConfigPath, 'w')
-
+            audioFp = open(audioConfigPath, 'w', encoding='utf-8')
             self.subtitlePath = os.path.join(self.path, 'subtitle.srt')
             srtFp = open(self.subtitlePath, 'w')
 
