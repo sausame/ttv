@@ -56,7 +56,10 @@ def mkdir(path, mode=stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_
 
 def chmod(path, mode=stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IWGRP|stat.S_IXGRP|stat.S_IROTH|stat.S_IWOTH|stat.S_IXOTH):
     if os.path.exists(path):
-        os.chmod(path, mode)
+        try:
+            os.chmod(path, mode)
+        except PermissionError as e:
+            print(e)
 
 def remove(path):
     if os.path.exists(path):
