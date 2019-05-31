@@ -104,8 +104,9 @@ class ContentGenerator:
             print('Add title for', titlePath)
 
             cmd = ''' ffmpeg -y -i {} -max_muxing_queue_size 10240 -vf drawtext="fontfile={}: \
-                      text='{}': fontcolor=white: fontsize=48: box=1: boxcolor=black@0.5: \
-                      boxborderw=5: x=(w-text_w)/2: y=20" -codec:a copy {} '''.format(pathname,
+                      text='{}': fontcolor=white: fontsize=48: box=1: boxcolor=black@0.1: \
+                      boxborderw=5: shadowcolor=black: shadowx=1: shadowy=1: \
+                      x=(w-text_w)/2: y=20" -codec:a copy {} '''.format(pathname,
                               self.font, self.name, titlePath)
 
             runCommand(cmd)
