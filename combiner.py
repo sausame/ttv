@@ -11,6 +11,7 @@ from imgkit import ImageKit
 from network import Network
 from urllib.parse import unquote
 from utils import duration2srttime, getMatchString, getProperty, reprDict, runCommand, OutputPath
+from videokit import VideoMaker, VideoKit
 
 class ContentGenerator:
 
@@ -155,42 +156,22 @@ class ContentGenerator:
 
             return
 
-        configPath = os.path.join(self.path, 'image.txt')
+        duration = self.length / self.imageCount
+        videoMaker = None
 
-        with open(configPath, 'w') as fp:
+        for index in range(self.imageCount):
 
-            duration = self.length / self.imageCount
+            imagePath = os.path.join(self.path, '{}.jpg'.format(index))
 
-            count = -1
+            if not os.path.exists(imagePath):
+                continue
 
-            for index in range(self.imageCount):
+            imageVideoPath = '{}.mp4'.format(imagePath)
+            VideoKit.createLoopVideo(imageVideoPath, imagePath, duration)
 
-                imagePath = os.path.join(self.path, '{}.jpg'.format(index))
+            videoMaker = VideoKit.appendVideo(imageVideoPath, videoMaker)
 
-                if not os.path.exists(imagePath):
-                    continue
-
-                count += 1
-
-                if count > 0:
-                    fp.write('duration {:.2f}\n'.format(duration))
-
-                fp.write('file \'{}\'\n'.format(imagePath))
-
-                if count is 0:
-                    fp.write('duration 0\n')
-                    fp.write('file \'{}\'\n'.format(imagePath))
-            else:
-                if count > 0:
-                    fp.write('duration 0\n')
-                    fp.write('file \'{}\'\n'.format(imagePath))
-
-        print('Create slider to', self.imagePath, 'from', configPath)
-
-        cmd = 'ffmpeg -y -f concat -safe 0 -i {} -s {}x{} -vsync vfr -pix_fmt yuv420p {}'.format(configPath,
-                self.width, self.height, self.imagePath)
-
-        runCommand(cmd)
+        videoMaker.merge(self.imagePath)
 
     def saveImages(self, urls):
 
