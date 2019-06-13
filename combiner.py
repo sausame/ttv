@@ -204,38 +204,45 @@ class ContentGenerator:
 
             if imagePath is not None:
 
-                if self.background:
+                # To jpg
+                if not imagePath.endswith('.jpg'):
 
-                    # Scale image
-                    scalePath = os.path.join(self.path, '{}.scale.jpg'.format(index))
+                    oldPath = imagePath
+                    imagePath = os.path.join(self.path, '{}.original.jpg'.format(index))
 
-                    print('Scale', imagePath, 'to', scalePath)
+                    print('Translate', oldPath, 'to', imagePath)
 
-                    cmd = 'ffmpeg -y -i {0} -vf scale="\'if(gt(a,{1}/{2}),{1},-1)\':\'if(gt(a,{1}/{2}),-1,{2})\'" {3}'.format(imagePath,
-                            self.width, self.height, scalePath)
-
+                    cmd = 'ffmpeg -y -i {} {}'.format(oldPath, imagePath)
                     runCommand(cmd)
 
-                    # Overlay background
-                    overlayPath = os.path.join(self.path, '{}.jpg'.format(index))
+                # Backgroud image
+                cropPath = os.path.join(self.path, '{}.crop.jpg'.format(index))
+                bgPath = os.path.join(self.path, '{}.bg.jpg'.format(index))
 
-                    print('Overlay', self.background, 'to', overlayPath)
+                print('Create background to', bgPath)
 
-                    cmd = 'ffmpeg -y -i {} -i {} -filter_complex "overlay=x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2" {}'.format(self.background,
-                            scalePath, overlayPath)
+                ImageKit.crop(cropPath, imagePath, (self.width, self.height))
+                ImageKit.blurdim(bgPath, cropPath)
 
-                    runCommand(cmd)
-                else:
+                # Scale image
+                scalePath = os.path.join(self.path, '{}.scale.jpg'.format(index))
 
-                    # Scale image
-                    scalePath = os.path.join(self.path, '{}.jpg'.format(index))
+                print('Scale', imagePath, 'to', scalePath)
 
-                    print('Scale', imagePath, 'to', scalePath)
+                cmd = 'ffmpeg -y -i {0} -vf scale="\'if(gt(a,{1}/{2}),{1},-1)\':\'if(gt(a,{1}/{2}),-1,{2})\'" {3}'.format(imagePath,
+                        self.width, self.height, scalePath)
 
-                    cmd = 'ffmpeg -y -i {0} -vf "scale={1}:{2}:force_original_aspect_ratio=decrease,pad={1}:{2}:(ow-iw)/2:(oh-ih)/2" {3}'.format(imagePath,
-                            self.width, self.height, scalePath)
+                runCommand(cmd)
 
-                    runCommand(cmd)
+                # Overlay background
+                overlayPath = os.path.join(self.path, '{}.jpg'.format(index))
+
+                print('Overlay', bgPath, 'to', overlayPath)
+
+                cmd = 'ffmpeg -y -i {} -i {} -filter_complex "overlay=x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2" {}'.format(bgPath,
+                        scalePath, overlayPath)
+
+                runCommand(cmd)
 
                 index += 1
 
@@ -455,7 +462,7 @@ class Combiner:
             runCommand(cmd)
             '''
 
-            ImageKit.resize(self.logo, logo, newSize=(logoWidth, logoHeight))
+            ImageKit.stretch(self.logo, logo, (logoWidth, logoHeight))
         else:
             self.logo = None
 
@@ -470,6 +477,7 @@ class Combiner:
 
         if background:
             self.background = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'background.jpg')
+            scalePath = os.path.join(OutputPath.DATA_OUTPUT_PATH, 'bg-scale.jpg')
 
             print('Create background', self.background, 'from', background)
 
@@ -480,7 +488,8 @@ class Combiner:
             runCommand(cmd)
             '''
 
-            ImageKit.resize(self.background, background, newSize=(self.width, self.height))
+            ImageKit.crop(scalePath, background, (self.width, self.height))
+            ImageKit.blurdim(self.background, scalePath)
         else:
             self.background = None
 
