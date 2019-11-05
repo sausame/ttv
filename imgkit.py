@@ -22,8 +22,8 @@ class ImageKit:
                 elif height < dstSize[1]:
                     height = dstSize[1]
 
-        pos = srcFile.rfind('.')
-        tempFile = '{}.tmp{}'.format(srcFile[:pos], srcFile[pos:])
+        pos = dstFile.rfind('.')
+        tempFile = '{}.tmp{}'.format(dstFile[:pos], dstFile[pos:])
         ImageKit.stretch(tempFile, srcFile, (width, height))
 
         with open(tempFile, 'rb') as srcFp:
